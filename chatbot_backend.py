@@ -50,7 +50,7 @@ embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
 
 # Knowledge Graph Integration
 try:
-    graph = Neo4jGraph(url="bolt://localhost:7687", username="neo4j", password="password")
+    graph = Neo4jGraph(url=os.getenv('NEO4J_URI', 'bolt://localhost:7687'),username=os.getenv('NEO4J_USER', 'neo4j'),password=os.getenv('NEO4J_PASSWORD', 'password'))
     print("Successfully connected to Neo4j")
 except Exception as e:
     print(f"Error connecting to Neo4j: {e}")
