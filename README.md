@@ -95,9 +95,7 @@ pip install -r requirements.txt
   <li>Make your changes and write tests if applicable.</li>
   <li>Submit a pull request with a clear description of your changes.</li>
 </ol>
-<h2 id="license">License</h2>
-<p>This project is licensed under the <strong>MIT License</strong>. See the <code>LICENSE</code> file for details.</p>
 <hr>
 <p align="center">
-  <em>Developed with ❤️ by [Your Name](https://github.com/yourusername)</em>
-</p>
+  <em>Developed with ❤️ by Sunil Giri(https://github.com/sunilgiri7)</em>
+</p>```
