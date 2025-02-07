@@ -19,9 +19,11 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain.docstore.document import Document
 from operator import itemgetter
 from collections import defaultdict
+from dotenv import load_dotenv
+load_dotenv()
 
-# Set Hugging Face API Token
-os.environ["HUGGINGFACEHUB_API_TOKEN"] = "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"
+hf_api_token = os.getenv("HUGGINGFACEHUB_API_TOKEN")
+cohere_api_key = os.getenv("COHERE_API_KEY")
 
 session_storage = defaultdict(list)
 logging.basicConfig(level=logging.INFO)
@@ -31,7 +33,7 @@ logger = logging.getLogger(__name__)
 llm = HuggingFaceEndpoint(
     endpoint_url="https://api-inference.huggingface.co/models/deepseek-ai/DeepSeek-R1-Distill-Qwen-7B",
     task="text-generation",
-    huggingfacehub_api_token=os.environ["HUGGINGFACEHUB_API_TOKEN"]
+    huggingfacehub_api_token=hf_api_token
 )
 
 output_parser = StrOutputParser()
@@ -123,7 +125,7 @@ def create_advanced_retriever(vector_store):
 
     try:
         compressor = CohereRerank(
-            cohere_api_key="qh0A33w5XZXoT6FrEHXYvbHonsjYOTYveuJPDcBP",
+            cohere_api_key=cohere_api_key,
             top_n=5,
             model='rerank-english-v2.0'
         )
