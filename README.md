@@ -1,4 +1,5 @@
-<h1 align="center">Enterprise AI Chatbot & Document Ingestion System</h1>
+<h1 align="center">AUTOMODE-AI</h1>
+<h2 align="center">Enterprise AI Chatbot & Document Ingestion System</h2>
 
 <p align="center">
   <strong>Advanced Chatbot Powered by LangChain, FAISS, and Reinforcement Learning</strong>
@@ -10,7 +11,6 @@
   <a href="#usage">Usage</a> •
   <a href="#architecture">Architecture</a> •
   <a href="#contributing">Contributing</a> •
-  <a href="#license">License</a>
 </p>
 
 <hr>
