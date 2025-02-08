@@ -1,753 +1,671 @@
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>AI Assistant | Enterprise Chat Solution</title>
-        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.24.1/themes/prism.min.css">
-        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.24.1/themes/prism-tomorrow.min.css">
-        <script src="https://cdn.socket.io/4.0.1/socket.io.min.js"></script>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.24.1/prism.min.js"></script>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.24.1/components/prism-python.min.js"></script>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.24.1/components/prism-javascript.min.js"></script>
-        <style>
-            :root {
-                --primary: #2563eb;
-                --secondary: #f8fafc;
-                --accent: #3b82f6;
-                --background: #fefeff;
-                --card: #f3f2f2;
-                --text: #0f172a;
-                --border: #e2e8f0;
-                --code-bg: #1e1e1e;
-                --bot-message-bg: #f3f4f6;
-                --bot-message-text: #1f2937;
-            }
-    
-            [data-theme="dark"] {
-                --primary: #3b82f6;
-                --secondary: #334155;
-                --accent: #60a5fa;
-                --background: #0f172a;
-                --card: #1e293b;
-                --text: #f1f5f9;
-                --border: #334155;
-                --code-bg: #282c34;
-                --bot-message-bg: #1e293b;
-                --bot-message-text: #f1f5f9;
-            }
-
-            * {
-                margin: 0;
-                padding: 0;
-                box-sizing: border-box;
-                font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-            }
-
-            body {
-                background: var(--background);
-                display: flex;
-                min-height: 100vh;
-                transition: background-color 0.3s ease;
-            }
-
-            .app-container {
-                display: flex;
-                flex: 1;
-                max-width: 1800px;
-                margin: 2rem auto;
-                gap: 2rem;
-                padding: 0 2rem;
-                height: calc(100vh - 4rem);
-            }
-
-            .sidebar {
-                width: 300px;
-                background: var(--card);
-                border-radius: 16px;
-                padding: 1.5rem;
-                display: flex;
-                flex-direction: column;
-                gap: 1.5rem;
-                height: 100%;
-                border: 1px solid var(--border);
-                transition: background-color 0.3s ease;
-            }
-
-            .chat-container {
-                flex: 1;
-                background: var(--card);
-                border-radius: 16px;
-                display: flex;
-                flex-direction: column;
-                border: 1px solid var(--border);
-                max-width: 1500px;
-                height: 100%;
-                transition: background-color 0.3s ease;
-            }
-
-            .theme-toggle {
-                padding: 0.5rem;
-                background: var(--background);
-                border: 1px solid var(--border);
-                border-radius: 8px;
-                color: var(--text);
-                cursor: pointer;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                gap: 0.5rem;
-                transition: all 0.3s ease;
-            }
-
-            .theme-toggle:hover {
-                background: var(--primary);
-                color: white;
-            }
-
-            .logo {
-                display: flex;
-                align-items: center;
-                gap: 0.75rem;
-                padding-bottom: 1rem;
-                border-bottom: 1px solid var(--border);
-            }
-
-            .logo-icon {
-                width: 40px;
-                height: 40px;
-                background: var(--primary);
-                border-radius: 10px;
-                display: grid;
-                place-items: center;
-                color: white;
-            }
-
-            .logo-text {
-                font-weight: 600;
-                font-size: 1.25rem;
-                color: var(--text);
-            }
-
-            .chat-header {
-                padding: 1.5rem;
-                border-bottom: 1px solid var(--border);
-                display: flex;
-                align-items: center;
-                justify-content: space-between;
-            }
-
-            .chat-title {
-                font-weight: 600;
-                color: var(--text);
-            }
-
-            .chat-body {
-                flex: 1;
-                overflow-y: auto;
-                padding: 1.5rem;
-                display: flex;
-                flex-direction: column;
-                gap: 1rem;
-                height: 0; /* This ensures the chat body takes remaining space */
-            }
-
-            .message {
-                max-width: 80%;
-                padding: 1.5rem;
-                border-radius: 12px;
-                animation: slideIn 0.3s ease-out;
-                line-height: 1.6;
-            }
-
-            .message-content {
-                white-space: pre-wrap;
-                word-break: break-word;
-            }
-
-            .message-content p {
-                margin-bottom: 1rem;
-            }
-
-            .user-message {
-                background: var(--primary);
-                color: white;
-                align-self: flex-end;
-                border-bottom-right-radius: 4px;
-            }
-
-            .bot-message {
-                background: var(--bot-message-bg);
-                color: var(--bot-message-text);
-                align-self: flex-start;
-                border-bottom-left-radius: 4px;
-                border: 1px solid var(--border);
-            }
-
-            .code-block {
-                background: var(--code-bg);
-                border-radius: 8px;
-                margin: 1rem 0;
-                position: relative;
-            }
-
-            .code-block pre {
-                margin: 0;
-                padding: 1rem;
-                overflow-x: auto;
-            }
-
-            .code-block code {
-                font-family: 'Fira Code', monospace;
-                font-size: 0.9rem;
-            }
-
-            .code-header {
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                padding: 0.5rem 1rem;
-                background: rgba(0, 0, 0, 0.2);
-                border-top-left-radius: 8px;
-                border-top-right-radius: 8px;
-                border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-            }
-
-            .code-language {
-                color: #aaa;
-                font-size: 0.85rem;
-            }
-
-            .copy-button {
-                background: transparent;
-                border: 1px solid rgba(255, 255, 255, 0.2);
-                color: #aaa;
-                padding: 0.25rem 0.5rem;
-                border-radius: 4px;
-                cursor: pointer;
-                font-size: 0.85rem;
-                transition: all 0.2s;
-            }
-
-            .copy-button:hover {
-                background: rgba(255, 255, 255, 0.1);
-                color: white;
-            }
-
-            /* Add styles for markdown elements */
-            .message-content h1, 
-            .message-content h2, 
-            .message-content h3 {
-                margin: 1.5rem 0 1rem 0;
-                color: var(--bot-message-text);
-            }
-
-            .message-content ul, 
-            .message-content ol {
-                margin: 1rem 0;
-                padding-left: 2rem;
-            }
-
-            .message-content li {
-                margin: 0.5rem 0;
-            }
-
-            .message-content a {
-                color: var(--primary);
-                text-decoration: none;
-            }
-
-            .message-content a:hover {
-                text-decoration: underline;
-            }
-
-            .user-message {
-                background: var(--primary);
-                color: white;
-                align-self: flex-end;
-                border-bottom-right-radius: 4px;
-            }
-
-            .bot-message {
-                background: var(--secondary);
-                color: var(--text);
-                align-self: flex-start;
-                border-bottom-left-radius: 4px;
-            }
-
-            .chat-footer {
-                padding: 1.5rem;
-                border-top: 1px solid var(--border);
-            }
-
-            .input-group {
-                display: flex;
-                gap: 1rem;
-                background: var(--background);
-                padding: 0.5rem;
-                border-radius: 12px;
-            }
-
-            .chat-input {
-                flex: 1;
-                border: none;
-                padding: 0.75rem;
-                border-radius: 8px;
-                background: transparent;
-                color: var(--text);
-                font-size: 1rem;
-            }
-
-            .chat-input:focus {
-                outline: none;
-            }
-
-            .upload-section {
-                background: var(--background);
-                padding: 1.5rem;
-                border-radius: 12px;
-                transition: background-color 0.3s ease;
-            }
-
-            .upload-title {
-                font-weight: 600;
-                margin-bottom: 1rem;
-                color: var(--text);
-            }
-
-            .file-input {
-                width: 100%;
-                padding: 0.75rem;
-                border: 2px dashed var(--border);
-                border-radius: 8px;
-                cursor: pointer;
-                background: var(--card);
-                color: var(--text);
-                margin-bottom: 1rem;
-            }
-
-            .upload-btn, .send-btn {
-                padding: 0.75rem 1.5rem;
-                background: var(--primary);
-                color: white;
-                border: none;
-                border-radius: 8px;
-                cursor: pointer;
-                font-weight: 500;
-                transition: all 0.3s ease;
-            }
-
-            .upload-btn:hover, .send-btn:hover {
-                background: var(--accent);
-            }
-
-            .feedback-container {
-                display: flex;
-                gap: 0.5rem;
-                margin-top: 0.5rem;
-                justify-content: flex-start;
-            }
-
-            .feedback-btn {
-                padding: 0.25rem 0.75rem;
-                background: transparent;
-                border: 1px solid var(--border);
-                border-radius: 6px;
-                cursor: pointer;
-                color: var(--text);
-                transition: all 0.3s;
-            }
-
-            .feedback-btn:hover {
-                background: var(--primary);
-                color: white;
-                border-color: var(--primary);
-            }
-
-            .typing-indicator {
-                display: flex;
-                align-items: center;
-                gap: 0.5rem;
-                padding: 1rem;
-                background: var(--bot-message-bg);
-                border-radius: 12px;
-                border-bottom-left-radius: 4px;
-                max-width: 80px;
-                align-self: flex-start;
-                margin: 0.5rem 0;
-                animation: slideIn 0.3s ease-out;
-            }
-
-            .typing-dot {
-                width: 8px;
-                height: 8px;
-                background: var(--bot-message-text);
-                border-radius: 50%;
-                animation: bounce 1.3s infinite;
-                opacity: 0.6;
-            }
-
-            .typing-dot:nth-child(2) { animation-delay: 0.15s; }
-            .typing-dot:nth-child(3) { animation-delay: 0.3s; }
-
-            @keyframes bounce {
-                0%, 60%, 100% { transform: translateY(0); }
-                30% { transform: translateY(-4px); }
-            }
-
-            @keyframes slideIn {
-                from { opacity: 0; transform: translateY(10px); }
-                to { opacity: 1; transform: translateY(0); }
-            }
-
-            @media (max-width: 768px) {
-                .app-container {
-                    flex-direction: column;
-                    padding: 1rem;
-                    margin: 0;
-                    height: auto;
-                }
-
-                .sidebar {
-                    width: 100%;
-                    height: auto;
-                }
-
-                .chat-container {
-                    height: calc(100vh - 400px);
-                }
-            }
-        </style>
-    </head>
-    <body>
-        <div class="app-container">
-            <aside class="sidebar">
-                <div class="logo">
-                    <div class="logo-icon">
-                        <i class="fas fa-robot"></i>
-                    </div>
-                    <div class="logo-text">AI Assistant</div>
-                </div>
-                <button class="theme-toggle" onclick="toggleTheme()">
-                    <i class="fas fa-sun"></i>
-                    <span>Toggle Theme</span>
-                </button>
-                <div class="upload-section">
-                    <h3 class="upload-title">Upload Documents</h3>
-                    <form id="upload-form" enctype="multipart/form-data">
-                        <input type="file" id="file-input" multiple class="file-input">
-                        <button type="submit" class="upload-btn">
-                            <i class="fas fa-cloud-upload-alt"></i> Upload Files
-                        </button>
-                    </form>
-                </div>
-            </aside>
-
-            <main class="chat-container">
-                <div class="chat-header">
-                    <h2 class="chat-title">Chat Session</h2>
-                    <div class="chat-actions">
-                        <button class="feedback-btn" onclick="clearChat()">
-                            <i class="fas fa-trash"></i>
-                        </button>
-                    </div>
-                </div>
-                <div class="chat-body" id="chat-body"></div>
-                <div class="chat-footer">
-                    <div class="input-group">
-                        <input type="text" id="chat-input" class="chat-input" 
-                            placeholder="Type your message here..." 
-                            onkeypress="if(event.key === 'Enter') sendMessage()">
-                        <button onclick="sendMessage()" class="send-btn">
-                            <i class="fas fa-paper-plane"></i>
-                        </button>
-                    </div>
-                </div>
-            </main>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Assistant | Enterprise Chat Solution</title>
+  <!-- Font Awesome & Prism CSS -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.24.1/themes/prism.min.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.24.1/themes/prism-tomorrow.min.css" />
+  <script src="https://cdn.socket.io/4.0.1/socket.io.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.24.1/prism.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.24.1/components/prism-python.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.24.1/components/prism-javascript.min.js"></script>
+  <style>
+    :root {
+      --primary: #2563eb;
+      --secondary: #f8fafc;
+      --accent: #3b82f6;
+      --background: #fefeff;
+      --card: #f3f2f2;
+      --text: #0f172a;
+      --border: #e2e8f0;
+      --code-bg: #1e1e1e;
+      --bot-message-bg: #f3f4f6;
+      --bot-message-text: #1f2937;
+    }
+    [data-theme="dark"] {
+      --primary: #3b82f6;
+      --secondary: #334155;
+      --accent: #60a5fa;
+      --background: #0f172a;
+      --card: #1e293b;
+      --text: #f1f5f9;
+      --border: #334155;
+      --code-bg: #282c34;
+      --bot-message-bg: #1e293b;
+      --bot-message-text: #f1f5f9;
+    }
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+    body {
+      background: var(--background);
+      display: flex;
+      min-height: 100vh;
+      transition: background-color 0.3s ease;
+    }
+    .app-container {
+      display: flex;
+      flex: 1;
+      max-width: 1800px;
+      margin: 2rem auto;
+      gap: 2rem;
+      padding: 0 2rem;
+      height: calc(100vh - 4rem);
+    }
+    .sidebar {
+      width: 300px;
+      background: var(--card);
+      border-radius: 16px;
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+      height: 100%;
+      border: 1px solid var(--border);
+      transition: background-color 0.3s ease;
+    }
+    .chat-container {
+      flex: 1;
+      background: var(--card);
+      border-radius: 16px;
+      display: flex;
+      flex-direction: column;
+      border: 1px solid var(--border);
+      max-width: 1500px;
+      height: 100%;
+      transition: background-color 0.3s ease;
+    }
+    .theme-toggle {
+      padding: 0.5rem;
+      background: var(--background);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      transition: all 0.3s ease;
+    }
+    .theme-toggle:hover {
+      background: var(--primary);
+      color: white;
+    }
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .logo-icon {
+      width: 40px;
+      height: 40px;
+      background: var(--primary);
+      border-radius: 10px;
+      display: grid;
+      place-items: center;
+      color: white;
+    }
+    .logo-text {
+      font-weight: 600;
+      font-size: 1.25rem;
+      color: var(--text);
+    }
+    .chat-header {
+      padding: 1.5rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .chat-title {
+      font-weight: 600;
+      color: var(--text);
+    }
+    .chat-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      height: 0; /* Ensures chat body takes remaining space */
+    }
+    .message {
+      max-width: 80%;
+      padding: 1.5rem;
+      border-radius: 12px;
+      animation: slideIn 0.3s ease-out;
+      line-height: 1.6;
+      position: relative;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .message-content p {
+      margin-bottom: 1rem;
+    }
+    .user-message {
+      background: var(--primary);
+      color: white;
+      align-self: flex-end;
+      border-bottom-right-radius: 4px;
+    }
+    .bot-message {
+      background: var(--secondary);
+      color: var(--text);
+      align-self: flex-start;
+      border-bottom-left-radius: 4px;
+    }
+    .code-block {
+      background: var(--code-bg);
+      border-radius: 8px;
+      margin: 1rem 0;
+      overflow: hidden;
+    }
+    .code-block pre {
+      margin: 0;
+      padding: 1rem;
+      overflow-x: auto;
+    }
+    .code-block code {
+      font-family: 'Fira Code', monospace;
+      font-size: 0.9rem;
+      color: #f8f8f2;
+    }
+    .code-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.5rem 1rem;
+      background: rgba(0, 0, 0, 0.2);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .code-language {
+      color: #aaa;
+      font-size: 0.85rem;
+    }
+    .copy-button {
+      background: transparent;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      color: #aaa;
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      transition: all 0.2s;
+    }
+    .copy-button:hover {
+      background: rgba(255, 255, 255, 0.1);
+      color: white;
+    }
+    /* Markdown styles */
+    .message-content h1, 
+    .message-content h2, 
+    .message-content h3 {
+      margin: 1.5rem 0 1rem 0;
+      color: var(--bot-message-text);
+    }
+    .message-content ul, 
+    .message-content ol {
+      margin: 1rem 0;
+      padding-left: 2rem;
+    }
+    .message-content li {
+      margin: 0.5rem 0;
+    }
+    .message-content a {
+      color: var(--primary);
+      text-decoration: none;
+    }
+    .message-content a:hover {
+      text-decoration: underline;
+    }
+    .chat-footer {
+      padding: 1.5rem;
+      border-top: 1px solid var(--border);
+    }
+    .input-group {
+      display: flex;
+      gap: 1rem;
+      background: var(--background);
+      padding: 0.5rem;
+      border-radius: 12px;
+    }
+    .chat-input {
+      flex: 1;
+      border: none;
+      padding: 0.75rem;
+      border-radius: 8px;
+      background: transparent;
+      color: var(--text);
+      font-size: 1rem;
+    }
+    .chat-input:focus {
+      outline: none;
+    }
+    .upload-section {
+      background: var(--background);
+      padding: 1.5rem;
+      border-radius: 12px;
+      transition: background-color 0.3s ease;
+    }
+    .upload-title {
+      font-weight: 600;
+      margin-bottom: 1rem;
+      color: var(--text);
+    }
+    .file-input {
+      width: 100%;
+      padding: 0.75rem;
+      border: 2px dashed var(--border);
+      border-radius: 8px;
+      cursor: pointer;
+      background: var(--card);
+      color: var(--text);
+      margin-bottom: 1rem;
+    }
+    .upload-btn, .send-btn {
+      padding: 0.75rem 1.5rem;
+      background: var(--primary);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 500;
+      transition: all 0.3s ease;
+    }
+    .upload-btn:hover, .send-btn:hover {
+      background: var(--accent);
+    }
+    .feedback-container {
+      display: flex;
+      gap: 0.5rem;
+      margin-top: 0.5rem;
+      justify-content: flex-start;
+    }
+    .feedback-btn {
+      padding: 0.25rem 0.75rem;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      cursor: pointer;
+      color: var(--text);
+      transition: all 0.3s;
+    }
+    .feedback-btn:hover {
+      background: var(--primary);
+      color: white;
+      border-color: var(--primary);
+    }
+    .typing-indicator {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 1rem;
+      background: var(--bot-message-bg);
+      border-radius: 12px;
+      border-bottom-left-radius: 4px;
+      max-width: 80px;
+      align-self: flex-start;
+      margin: 0.5rem 0;
+      animation: slideIn 0.3s ease-out;
+    }
+    .typing-dot {
+      width: 8px;
+      height: 8px;
+      background: var(--bot-message-text);
+      border-radius: 50%;
+      animation: bounce 1.3s infinite;
+      opacity: 0.6;
+    }
+    .typing-dot:nth-child(2) { animation-delay: 0.15s; }
+    .typing-dot:nth-child(3) { animation-delay: 0.3s; }
+    @keyframes bounce {
+      0%, 60%, 100% { transform: translateY(0); }
+      30% { transform: translateY(-4px); }
+    }
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @media (max-width: 768px) {
+      .app-container {
+        flex-direction: column;
+        padding: 1rem;
+        margin: 0;
+        height: auto;
+      }
+      .sidebar {
+        width: 100%;
+        height: auto;
+      }
+      .chat-container {
+        height: calc(100vh - 400px);
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-container">
+    <aside class="sidebar">
+      <div class="logo">
+        <div class="logo-icon">
+          <i class="fas fa-robot"></i>
         </div>
+        <div class="logo-text">AUTOMODE-AI</div>
+      </div>
+      <button class="theme-toggle" onclick="toggleTheme()">
+        <i class="fas fa-sun"></i>
+        <span>Toggle Theme</span>
+      </button>
+      <div class="upload-section">
+        <h3 class="upload-title">Upload Documents</h3>
+        <form id="upload-form" enctype="multipart/form-data">
+          <input type="file" id="file-input" multiple class="file-input" />
+          <button type="submit" class="upload-btn">
+            <i class="fas fa-cloud-upload-alt"></i> Upload Files
+          </button>
+        </form>
+      </div>
+    </aside>
 
-        <script>
-            const socket = io("http://172.16.1.16:5000");
-            let isTyping = false;
+    <main class="chat-container">
+      <div class="chat-header">
+        <h2 class="chat-title">Chat Session</h2>
+        <div class="chat-actions">
+          <button class="feedback-btn" onclick="clearChat()">
+            <i class="fas fa-trash"></i>
+          </button>
+        </div>
+      </div>
+      <div class="chat-body" id="chat-body"></div>
+      <div class="chat-footer">
+        <div class="input-group">
+          <input
+            type="text"
+            id="chat-input"
+            class="chat-input"
+            placeholder="Type your message here..."
+            onkeypress="if(event.key === 'Enter') sendMessage()"
+          />
+          <button onclick="sendMessage()" class="send-btn">
+            <i class="fas fa-paper-plane"></i>
+          </button>
+        </div>
+      </div>
+    </main>
+  </div>
 
-            // Theme management
-            function toggleTheme() {
-                const body = document.body;
-                const currentTheme = body.getAttribute('data-theme');
-                const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-                body.setAttribute('data-theme', newTheme);
-                localStorage.setItem('theme', newTheme);
-                updateThemeIcon(newTheme);
-            }
+  <script>
+    // Initialize socket connection
+    const socket = io("http://172.16.1.16:5000");
+    let isTyping = false;
 
-            function updateThemeIcon(theme) {
-                const icon = document.querySelector('.theme-toggle i');
-                icon.className = theme === 'dark' ? 'fas fa-moon' : 'fas fa-sun';
-            }
+    // -----------------------
+    // Theme Management
+    // -----------------------
+    function toggleTheme() {
+      const body = document.body;
+      const currentTheme = body.getAttribute("data-theme");
+      const newTheme = currentTheme === "dark" ? "light" : "dark";
+      body.setAttribute("data-theme", newTheme);
+      localStorage.setItem("theme", newTheme);
+      updateThemeIcon(newTheme);
+    }
 
-            // Initialize theme
-            function initializeTheme() {
-                const savedTheme = localStorage.getItem('theme') || 'light';
-                document.body.setAttribute('data-theme', savedTheme);
-                updateThemeIcon(savedTheme);
-            }
+    function updateThemeIcon(theme) {
+      const icon = document.querySelector(".theme-toggle i");
+      icon.className = theme === "dark" ? "fas fa-moon" : "fas fa-sun";
+    }
 
-            function formatMessage(text) {
-                // Convert markdown-style headers
-                text = text.replace(/^### (.*$)/gm, '<h3>$1</h3>');
-                text = text.replace(/^## (.*$)/gm, '<h2>$1</h2>');
-                text = text.replace(/^# (.*$)/gm, '<h1>$1</h1>');
+    function initializeTheme() {
+      const savedTheme = localStorage.getItem("theme") || "light";
+      document.body.setAttribute("data-theme", savedTheme);
+      updateThemeIcon(savedTheme);
+    }
+    initializeTheme();
 
-                // Convert code blocks with language support
-                text = text.replace(/```(\w+)?\n([\s\S]*?)```/g, (match, lang, code) => {
-                    const language = lang || 'plaintext';
-                    const highlightedCode = Prism.highlight(
-                        code.trim(),
-                        Prism.languages[language] || Prism.languages.plaintext,
-                        language
-                    );
-                    return `
-                        <div class="code-block">
-                            <div class="code-header">
-                                <span class="code-language">${language}</span>
-                                <button class="copy-button" onclick="copyCode(this)">
-                                    <i class="fas fa-copy"></i> Copy
-                                </button>
-                            </div>
-                            <pre><code class="language-${language}">${highlightedCode}</code></pre>
-                        </div>
-                    `;
-                });
+    // -----------------------
+    // Message Formatting
+    // -----------------------
+    function formatMessage(text) {
+      // Escape HTML for security (optional, depending on your needs)
+      // You can use a library or custom function for HTML escaping if needed.
 
-                // Convert inline code
-                text = text.replace(/`([^`]+)`/g, '<code>$1</code>');
+      // Convert markdown headers
+      text = text.replace(/^### (.*$)/gm, "<h3>$1</h3>");
+      text = text.replace(/^## (.*$)/gm, "<h2>$1</h2>");
+      text = text.replace(/^# (.*$)/gm, "<h1>$1</h1>");
 
-                // Convert lists
-                text = text.replace(/^\s*[-*+]\s+(.*)$/gm, '<li>$1</li>');
-                text = text.replace(/(<li>.*<\/li>)/s, '<ul>$1</ul>');
+      // Convert code blocks with optional language (using triple backticks)
+      text = text.replace(/```(\w+)?\n([\s\S]*?)```/g, (match, lang, code) => {
+        const language = lang || "plaintext";
+        const highlightedCode = Prism.highlight(
+          code.trim(),
+          Prism.languages[language] || Prism.languages.plaintext,
+          language
+        );
+        return `
+          <div class="code-block">
+            <div class="code-header">
+              <span class="code-language">${language}</span>
+              <button class="copy-button" onclick="copyCode(this)">
+                <i class="fas fa-copy"></i> Copy
+              </button>
+            </div>
+            <pre><code class="language-${language}">${highlightedCode}</code></pre>
+          </div>
+        `;
+      });
 
-                // Convert links
-                text = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
+      // Convert inline code (using single backticks)
+      text = text.replace(/`([^`]+)`/g, "<code>$1</code>");
 
-                // Convert paragraphs
-                text = text.replace(/\n\n/g, '</p><p>');
-                text = '<p>' + text + '</p>';
+      // Convert lists (simple implementation)
+      text = text.replace(/^\s*[-*+]\s+(.*)$/gm, "<li>$1</li>");
+      // Wrap list items in a UL if one or more <li> exist
+      if (/<li>/.test(text)) {
+        text = "<ul>" + text + "</ul>";
+      }
 
-                return text;
-            }
+      // Convert links [text](url)
+      text = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
 
-            function copyCode(button) {
-                const codeBlock = button.closest('.code-block');
-                const code = codeBlock.querySelector('code').textContent;
-                
-                navigator.clipboard.writeText(code).then(() => {
-                    button.innerHTML = '<i class="fas fa-check"></i> Copied!';
-                    setTimeout(() => {
-                        button.innerHTML = '<i class="fas fa-copy"></i> Copy';
-                    }, 2000);
-                });
-            }
+      // Convert double newlines to paragraph breaks
+      text = text.replace(/\n\n/g, "</p><p>");
+      text = "<p>" + text + "</p>";
 
-            function addMessage(sender, text) {
-                const chatBody = document.getElementById("chat-body");
-                const msgDiv = document.createElement("div");
-                msgDiv.classList.add("message", sender === "user" ? "user-message" : "bot-message");
-                
-                const contentDiv = document.createElement("div");
-                contentDiv.classList.add("message-content");
-                contentDiv.innerHTML = formatMessage(text);
-                msgDiv.appendChild(contentDiv);
-                
-                // Only add feedback if it's a bot message and show_feedback is true
-                if (sender === "bot" && window.lastBotResponse && window.lastBotResponse.show_feedback) {
-                    const feedbackDiv = document.createElement("div");
-                    feedbackDiv.classList.add("feedback-container");
-                    for (let i = 1; i <= 5; i++) {
-                        const btn = document.createElement("button");
-                        btn.classList.add("feedback-btn");
-                        btn.textContent = i;
-                        btn.onclick = () => sendFeedback(i);
-                        feedbackDiv.appendChild(btn);
-                    }
-                    msgDiv.appendChild(feedbackDiv);
-                }
-                
-                chatBody.appendChild(msgDiv);
-                chatBody.scrollTop = chatBody.scrollHeight;
-                Prism.highlightAll();
-            }
+      return text;
+    }
 
-            function handleError(error, defaultMessage = "An error occurred") {
-                console.error(error);
-                addMessage("bot", `Error: ${error.message || defaultMessage}`);
-            }
+    // -----------------------
+    // Copy Code Functionality
+    // -----------------------
+    function copyCode(button) {
+      const codeBlock = button.closest(".code-block");
+      const code = codeBlock.querySelector("code").textContent;
+      navigator.clipboard.writeText(code).then(() => {
+        button.innerHTML = '<i class="fas fa-check"></i> Copied!';
+        setTimeout(() => {
+          button.innerHTML = '<i class="fas fa-copy"></i> Copy';
+        }, 2000);
+      });
+    }
 
-            async function sendMessage() {
-                const input = document.getElementById("chat-input");
-                const message = input.value.trim();
-                if (!message) return;
-                
-                try {
-                    addMessage("user", message);
-                    showTypingIndicator();
-                    
-                    socket.emit("user_message", { 
-                        message: message, 
-                        session_id: "12345" 
-                    });
-                    
-                    input.value = "";
-                } catch (error) {
-                    handleError(error, "Failed to send message");
-                }
-            }
+    // -----------------------
+    // Chat Message Handling
+    // -----------------------
+    function addMessage(sender, text) {
+      const chatBody = document.getElementById("chat-body");
+      const msgDiv = document.createElement("div");
+      msgDiv.classList.add("message", sender === "user" ? "user-message" : "bot-message");
 
-            function showTypingIndicator() {
-                if (isTyping) return;
-                
-                isTyping = true;
-                const indicator = document.createElement("div");
-                indicator.className = "typing-indicator";
-                indicator.innerHTML = `
-                    <div class="typing-dot"></div>
-                    <div class="typing-dot"></div>
-                    <div class="typing-dot"></div>
-                `;
-                document.getElementById("chat-body").appendChild(indicator);
-            }
+      // Create a content container that holds the formatted message
+      const contentDiv = document.createElement("div");
+      contentDiv.classList.add("message-content");
+      contentDiv.innerHTML = formatMessage(text);
+      msgDiv.appendChild(contentDiv);
 
-            function hideTypingIndicator() {
-                isTyping = false;
-                const indicator = document.querySelector(".typing-indicator");
-                if (indicator) indicator.remove();
-            }
+      // Only add feedback buttons for bot messages
+      if (sender === "bot" && window.lastBotResponse && window.lastBotResponse.show_feedback) {
+        const feedbackDiv = document.createElement("div");
+        feedbackDiv.classList.add("feedback-container");
+        for (let i = 1; i <= 5; i++) {
+          const btn = document.createElement("button");
+          btn.classList.add("feedback-btn");
+          btn.textContent = i;
+          btn.onclick = () => sendFeedback(i);
+          feedbackDiv.appendChild(btn);
+        }
+        msgDiv.appendChild(feedbackDiv);
+      }
 
-            function addMessage(sender, text) {
-                const chatBody = document.getElementById("chat-body");
-                const msgDiv = document.createElement("div");
-                msgDiv.classList.add("message", sender === "user" ? "user-message" : "bot-message");
-                msgDiv.textContent = text;
-                
-                if (sender === "bot") {
-                    const feedbackDiv = document.createElement("div");
-                    feedbackDiv.classList.add("feedback-container");
-                    for (let i = 1; i <= 5; i++) {
-                        const btn = document.createElement("button");
-                        btn.classList.add("feedback-btn");
-                        btn.textContent = i;
-                        btn.onclick = () => sendFeedback(i);
-                        feedbackDiv.appendChild(btn);
-                    }
-                    msgDiv.appendChild(feedbackDiv);
-                }
-                
-                chatBody.appendChild(msgDiv);
-                chatBody.scrollTop = chatBody.scrollHeight;
-            }
+      chatBody.appendChild(msgDiv);
+      chatBody.scrollTop = chatBody.scrollHeight;
+      Prism.highlightAll();
+    }
 
-            function sendFeedback(rating) {
-                socket.emit("user_message", {
-                    message: "Feedback: " + rating,
-                    session_id: "12345",
-                    feedback: rating
-                });
-                
-                const feedbackBtns = document.querySelectorAll(".feedback-container");
-                const lastFeedback = feedbackBtns[feedbackBtns.length - 1];
-                lastFeedback.innerHTML = `<span style="color: var(--primary);">Thank you for your feedback!</span>`;
-            }
+    function handleError(error, defaultMessage = "An error occurred") {
+      console.error(error);
+      addMessage("bot", `Error: ${error.message || defaultMessage}`);
+    }
 
-            function clearChat() {
-                document.getElementById("chat-body").innerHTML = "";
-            }
+    async function sendMessage() {
+      const input = document.getElementById("chat-input");
+      const message = input.value.trim();
+      if (!message) return;
+      try {
+        // Show user message and clear input
+        addMessage("user", message);
+        input.value = "";
+        // Show typing indicator while waiting for bot response
+        showTypingIndicator();
+        // Emit user message to the server
+        socket.emit("user_message", {
+          message: message,
+          session_id: "12345"
+        });
+      } catch (error) {
+        handleError(error, "Failed to send message");
+      }
+    }
 
-            document.getElementById('upload-form').addEventListener('submit', async (e) => {
-                e.preventDefault();
-                const formData = new FormData();
-                const files = document.getElementById('file-input').files;
-                const uploadBtn = e.target.querySelector('.upload-btn');
-                
-                if (files.length === 0) {
-                    addMessage("bot", "Please select files to upload");
-                    return;
-                }
-                
-                uploadBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Uploading...';
-                uploadBtn.disabled = true;
-                
-                try {
-                    for (let file of files) {
-                        formData.append('file', file);
-                    }
-                    
-                    const response = await fetch('http://localhost:5000/upload', {
-                        method: 'POST',
-                        body: formData
-                    });
-                    
-                    const result = await response.json();
-                    
-                    if (response.ok) {
-                        const successMsg = `Files uploaded successfully: ${result.processed_files.join(', ')}`;
-                        addMessage("bot", successMsg);
-                        
-                        if (result.failed_files && result.failed_files.length > 0) {
-                            addMessage("bot", `Failed files: ${result.failed_files.join(', ')}`);
-                        }
-                    } else {
-                        throw new Error(result.error || 'Upload failed');
-                    }
-                } catch (error) {
-                    handleError(error, "Error uploading files");
-                } finally {
-                    uploadBtn.innerHTML = '<i class="fas fa-cloud-upload-alt"></i> Upload Files';
-                    uploadBtn.disabled = false;
-                    document.getElementById('file-input').value = '';
-                }
-            });
+    function sendFeedback(rating) {
+      socket.emit("user_message", {
+        message: "Feedback: " + rating,
+        session_id: "12345",
+        feedback: rating
+      });
+      // Find the most recent feedback container and replace its contents with a thank-you message
+      const feedbackContainers = document.querySelectorAll(".feedback-container");
+      if (feedbackContainers.length) {
+        const lastFeedback = feedbackContainers[feedbackContainers.length - 1];
+        lastFeedback.innerHTML = `<span style="color: var(--primary);">Thank you for your feedback!</span>`;
+      }
+    }
 
-            socket.on('bot_typing', function(data) {
-                if (data.status) {
-                    showTypingIndicator();
-                } else {
-                    hideTypingIndicator();
-                }
-            });
+    function clearChat() {
+      document.getElementById("chat-body").innerHTML = "";
+    }
 
-            function showTypingIndicator() {
-                hideTypingIndicator(); // Remove any existing indicator
-                const chatBody = document.getElementById("chat-body");
-                const indicator = document.createElement("div");
-                indicator.className = "typing-indicator";
-                indicator.innerHTML = `
-                    <div class="typing-dot"></div>
-                    <div class="typing-dot"></div>
-                    <div class="typing-dot"></div>
-                `;
-                chatBody.appendChild(indicator);
-                chatBody.scrollTop = chatBody.scrollHeight;
-            }
+    // -----------------------
+    // Typing Indicator
+    // -----------------------
+    function showTypingIndicator() {
+      // Avoid multiple indicators
+      hideTypingIndicator();
+      const chatBody = document.getElementById("chat-body");
+      const indicator = document.createElement("div");
+      indicator.className = "typing-indicator";
+      indicator.innerHTML = `
+        <div class="typing-dot"></div>
+        <div class="typing-dot"></div>
+        <div class="typing-dot"></div>
+      `;
+      chatBody.appendChild(indicator);
+      chatBody.scrollTop = chatBody.scrollHeight;
+      isTyping = true;
+    }
 
-            function hideTypingIndicator() {
-                const indicators = document.querySelectorAll(".typing-indicator");
-                indicators.forEach(indicator => indicator.remove());
-            }
+    function hideTypingIndicator() {
+      const indicators = document.querySelectorAll(".typing-indicator");
+      indicators.forEach(indicator => indicator.remove());
+      isTyping = false;
+    }
 
-            socket.on("bot_response", function(data) {
-                hideTypingIndicator();
-                window.lastBotResponse = data;
-                addMessage("bot", data.message);
-            });
+    // -----------------------
+    // File Upload Handling
+    // -----------------------
+    document.getElementById("upload-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const formData = new FormData();
+      const files = document.getElementById("file-input").files;
+      const uploadBtn = e.target.querySelector(".upload-btn");
+      if (files.length === 0) {
+        addMessage("bot", "Please select files to upload");
+        return;
+      }
+      uploadBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Uploading...';
+      uploadBtn.disabled = true;
+      try {
+        for (let file of files) {
+          formData.append("file", file);
+        }
+        const response = await fetch("http://localhost:5000/upload", {
+          method: "POST",
+          body: formData
+        });
+        const result = await response.json();
+        if (response.ok) {
+          const successMsg = `Files uploaded successfully: ${result.processed_files.join(", ")}`;
+          addMessage("bot", successMsg);
+          if (result.failed_files && result.failed_files.length > 0) {
+            addMessage("bot", `Failed files: ${result.failed_files.join(", ")}`);
+          }
+        } else {
+          throw new Error(result.error || "Upload failed");
+        }
+      } catch (error) {
+        handleError(error, "Error uploading files");
+      } finally {
+        uploadBtn.innerHTML = '<i class="fas fa-cloud-upload-alt"></i> Upload Files';
+        uploadBtn.disabled = false;
+        document.getElementById("file-input").value = "";
+      }
+    });
 
-            // Improved error handling for socket connection
-            socket.on('connect_error', (error) => {
-                handleError(error, "Connection error occurred");
-            });
+    // -----------------------
+    // Socket Event Listeners
+    // -----------------------
+    socket.on("bot_typing", function (data) {
+      if (data.status) {
+        showTypingIndicator();
+      } else {
+        hideTypingIndicator();
+      }
+    });
 
-            socket.on('error', (error) => {
-                handleError(error, "Socket error occurred");
-            });
-        </script>
-    </body>
-    </html>
+    socket.on("bot_response", function (data) {
+      hideTypingIndicator();
+      window.lastBotResponse = data;
+      addMessage("bot", data.message);
+    });
+
+    socket.on("connect_error", (error) => {
+      handleError(error, "Connection error occurred");
+    });
+
+    socket.on("error", (error) => {
+      handleError(error, "Socket error occurred");
+    });
+  </script>
+</body>
+</html>
