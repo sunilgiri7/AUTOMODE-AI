@@ -408,6 +408,12 @@
     // Initialize socket connection
     const socket = io("http://172.16.1.16:5000");
     let isTyping = false;
+    let currentSessionId = null;
+
+    socket.on('session_created', (data) => {
+        currentSessionId = data.session_id;
+        console.log('Session created:', currentSessionId);
+    });
 
     // -----------------------
     // Theme Management
@@ -551,7 +557,7 @@
         // Emit user message to the server
         socket.emit("user_message", {
           message: message,
-          session_id: "12345"
+          session_id: currentSessionId
         });
       } catch (error) {
         handleError(error, "Failed to send message");
@@ -619,7 +625,7 @@
         for (let file of files) {
           formData.append("file", file);
         }
-        const response = await fetch("http://localhost:5000/upload", {
+        const response = await fetch("http://172.16.1.16:5000/upload", {
           method: "POST",
           body: formData
         });

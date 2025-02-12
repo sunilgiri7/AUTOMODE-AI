@@ -8,10 +8,11 @@ import fitz
 import docx
 from pathlib import Path
 from typing import Tuple, List, Dict, Union, Optional
-from chatbot_backend import chatbot, qa_chain
+from datetime import datetime
+from chatbot_backend import EnhancedChatbotBackend
 from faiss_manager import DocumentManager
 
-class FlaskChatApplication:
+class ImprovedFlaskChatApplication:
     def __init__(self):
         # Initialize Flask app
         self.app = Flask(__name__)
@@ -31,8 +32,10 @@ class FlaskChatApplication:
         self._configure_app()
         
         # Initialize components
+        self.chatbot = EnhancedChatbotBackend()
         self.doc_manager = DocumentManager()
         self.message_counters = {}
+        self.active_sessions = {}
         
         # Register routes and handlers
         self._register_routes()
@@ -50,15 +53,93 @@ class FlaskChatApplication:
         self.app.route('/')(self.index)
         self.app.route('/upload', methods=['POST'])(self.upload_file)
         self.app.route('/favicon.ico')(self.favicon)
+        self.app.route('/start_session', methods=['POST'])(self.start_session)
+        self.app.route('/end_session', methods=['POST'])(self.end_session)
 
     def _register_socket_handlers(self):
         """Register Socket.IO event handlers"""
         self.socketio.on('user_message')(self.handle_message)
+        self.socketio.on('feedback')(self.handle_feedback)
+        self.socketio.on('connect')(self.handle_connect)
+        self.socketio.on('disconnect')(self.handle_disconnect)
 
     def _register_error_handlers(self):
         """Register error handlers"""
         self.app.errorhandler(413)(self.too_large)
         self.app.errorhandler(Exception)(self.handle_exception)
+
+    def start_session(self):
+        """Initialize a new chat session"""
+        try:
+            session_id = request.json.get('session_id', str(datetime.now().timestamp()))
+            user_info = request.json.get('user_info', {})
+            
+            self.active_sessions[session_id] = {
+                'start_time': datetime.now(),
+                'user_info': user_info,
+                'message_count': 0
+            }
+            
+            return jsonify({
+                'session_id': session_id,
+                'status': 'success'
+            }), 200
+        except Exception as e:
+            self.logger.error(f"Error starting session: {str(e)}")
+            return jsonify({'error': 'Failed to start session'}), 500
+
+    def end_session(self):
+        """Clean up chat session"""
+        try:
+            session_id = request.json.get('session_id')
+            if session_id in self.active_sessions:
+                session_data = self.active_sessions.pop(session_id)
+                # Cleanup logic here
+                return jsonify({'status': 'success'}), 200
+            return jsonify({'error': 'Session not found'}), 404
+        except Exception as e:
+            self.logger.error(f"Error ending session: {str(e)}")
+            return jsonify({'error': 'Failed to end session'}), 500
+
+    def handle_connect(self):
+        """Handle socket connection by creating a default session"""
+        try:
+            session_id = f"session_{request.sid}"
+            self.active_sessions[session_id] = {
+                'start_time': datetime.now(),
+                'user_info': {},
+                'message_count': 0
+            }
+            self.logger.info(f"Client connected: {request.sid} with session: {session_id}")
+            # Emit the session ID to the client
+            emit('session_created', {'session_id': session_id})
+        except Exception as e:
+            self.logger.error(f"Error in handle_connect: {str(e)}")
+
+    def handle_disconnect(self):
+        """Handle socket disconnection"""
+        self.logger.info(f"Client disconnected: {request.sid}")
+
+    def handle_feedback(self, data):
+        """Handle user feedback"""
+        try:
+            session_id = data.get('session_id')
+            feedback = data.get('feedback')
+            message_id = data.get('message_id')
+            
+            if session_id in self.active_sessions:
+                # Store feedback
+                self.chatbot.session_manager.update_session_metadata(
+                    session_id,
+                    {'feedback': {message_id: feedback}}
+                )
+                
+                emit('feedback_received', {'status': 'success'})
+            else:
+                emit('feedback_received', {'status': 'error', 'message': 'Invalid session'})
+        except Exception as e:
+            self.logger.error(f"Error handling feedback: {str(e)}")
+            emit('feedback_received', {'status': 'error', 'message': str(e)})
 
     def allowed_file(self, filename: str) -> bool:
         """Check if the file extension is allowed."""
@@ -87,17 +168,8 @@ class FlaskChatApplication:
             self.logger.error(f"Error extracting DOCX text: {str(e)}")
             return None
 
-    def is_binary_file(self, filepath: str) -> bool:
-        """Check if a file is binary."""
-        try:
-            with open(filepath, 'r', encoding='utf-8') as file:
-                file.read()
-                return False
-        except UnicodeDecodeError:
-            return True
-
     def process_uploaded_file(self, file) -> Tuple[bool, str]:
-        """Process uploaded file based on its type."""
+        """Process uploaded file and add to context manager."""
         try:
             filename = secure_filename(file.filename)
             filepath = os.path.join(self.app.config['UPLOAD_FOLDER'], filename)
@@ -117,7 +189,10 @@ class FlaskChatApplication:
             
             if text is None:
                 return False, f"Failed to extract text from {file_ext.upper()} file"
-                
+            
+            # Add to context manager
+            self.chatbot.context_manager.update_context(text)
+            
             # Save extracted text
             text_filepath = os.path.join(self.app.config['UPLOAD_FOLDER'], f"{filename}.txt")
             with open(text_filepath, 'w', encoding='utf-8') as f:
@@ -141,7 +216,7 @@ class FlaskChatApplication:
         return render_template('index.html')
 
     def upload_file(self):
-        """Handle document uploads and add them to the vector store."""
+        """Handle document uploads and add them to the knowledge base."""
         try:
             if 'file' not in request.files:
                 return jsonify({'error': 'No file part'}), 400
@@ -184,7 +259,6 @@ class FlaskChatApplication:
                     self.logger.error(f"Error processing documents: {str(e)}")
                     return jsonify({'error': 'Error processing documents', 'details': str(e)}), 500
             
-            # Handle failed uploads
             if failed_files:
                 return jsonify({
                     'error': 'No valid files were uploaded',
@@ -202,46 +276,49 @@ class FlaskChatApplication:
         return '', 204
 
     def handle_message(self, data: Dict[str, str]):
-        """Handle incoming socket messages."""
+        """Handle incoming socket messages with improved session handling"""
         try:
             query = data.get("message", "").strip()
             if not query:
                 emit('bot_response', {'message': 'Please provide a valid question.'})
                 return
                 
-            session_id = data.get("session_id", "default_session")
+            # Get session ID or create default one based on socket ID
+            session_id = data.get("session_id", f"session_{request.sid}")
             
-            # Update message counter
-            if session_id not in self.message_counters:
-                self.message_counters[session_id] = 0
-            self.message_counters[session_id] += 1
+            # If session doesn't exist, create it
+            if session_id not in self.active_sessions:
+                self.active_sessions[session_id] = {
+                    'start_time': datetime.now(),
+                    'user_info': {},
+                    'message_count': 0
+                }
             
-            # Check if feedback should be shown
-            show_feedback = self.message_counters[session_id] % 10 == 0
+            # Update session tracking
+            self.active_sessions[session_id]['message_count'] += 1
+            message_count = self.active_sessions[session_id]['message_count']
+            show_feedback = message_count % 5 == 0  # Show feedback every 5 messages
             
             # Process message
             emit('bot_typing', {'status': True})
             
-            chat_history = chatbot.get_session_history(session_id)
-            response = chatbot.handle_query(
-                query=query,
-                history=chat_history,
-                qa_chain=qa_chain
-            )
+            # Generate response using improved chatbot
+            response = self.chatbot.handle_query(query, session_id)
             
             # Send response
             emit('bot_typing', {'status': False})
             emit('bot_response', {
                 'message': response,
-                'show_feedback': show_feedback
+                'show_feedback': show_feedback,
+                'message_id': f"{session_id}_{message_count}"
             })
-            chatbot.update_session_history(session_id, query, response)
             
         except Exception as e:
             self.logger.error(f"Socket error: {str(e)}", exc_info=True)
             emit('bot_typing', {'status': False})
             emit('bot_response', {
-                'message': 'I apologize, but I encountered an error processing your request.'
+                'message': 'I apologize, but I encountered an error processing your request.',
+                'error': True
             })
 
     # Error handlers
@@ -271,5 +348,5 @@ class FlaskChatApplication:
 
 # Create and run application
 if __name__ == '__main__':
-    chat_app = FlaskChatApplication()
+    chat_app = ImprovedFlaskChatApplication()
     chat_app.start()
