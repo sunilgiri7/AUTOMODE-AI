@@ -216,7 +216,6 @@ class ImprovedFlaskChatApplication:
         return render_template('index.html')
 
     def upload_file(self):
-        """Handle document uploads and add them to the knowledge base."""
         try:
             if 'file' not in request.files:
                 return jsonify({'error': 'No file part'}), 400
@@ -239,6 +238,7 @@ class ImprovedFlaskChatApplication:
             # Handle successful uploads
             if uploaded_files:
                 try:
+                    # Update the vector store with the new documents
                     self.doc_manager.add_documents(uploaded_files)
                     
                     # Clean up processed text files
@@ -248,12 +248,18 @@ class ImprovedFlaskChatApplication:
                         except Exception as e:
                             self.logger.error(f"Error removing file {filepath}: {str(e)}")
                     
+                    # Reset session history to ensure updated context is used in subsequent queries
+                    session_id = request.json.get('session_id', 'default')
+                    if session_id in self.chatbot.session_manager.sessions:
+                        self.chatbot.session_manager.sessions[session_id] = []  # Reset history
+                    
                     response = {
                         'message': f'Successfully processed {len(uploaded_files)} files',
                         'processed_files': [Path(f).name.replace('.txt', '') for f in uploaded_files]
                     }
                     if failed_files:
                         response['failed_files'] = failed_files
+                    
                     return jsonify(response), 200
                 except Exception as e:
                     self.logger.error(f"Error processing documents: {str(e)}")

@@ -406,7 +406,7 @@
 
   <script>
     // Initialize socket connection
-    const socket = io("http://172.16.1.16:5000");
+    const socket = io("http://127.0.0.1:5000");
     let isTyping = false;
     let currentSessionId = null;
 
@@ -625,7 +625,7 @@
         for (let file of files) {
           formData.append("file", file);
         }
-        const response = await fetch("http://172.16.1.16:5000/upload", {
+        const response = await fetch("http://127.0.0.1:5000/upload", {
           method: "POST",
           body: formData
         });
