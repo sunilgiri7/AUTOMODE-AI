@@ -249,7 +249,7 @@ class ImprovedFlaskChatApplication:
                             self.logger.error(f"Error removing file {filepath}: {str(e)}")
                     
                     # Reset session history to ensure updated context is used in subsequent queries
-                    session_id = request.json.get('session_id', 'default')
+                    session_id = request.form.get('session_id', 'default')
                     if session_id in self.chatbot.session_manager.sessions:
                         self.chatbot.session_manager.sessions[session_id] = []  # Reset history
                     
