@@ -2,7 +2,7 @@
 <h2 align="center">Enterprise AI Chatbot & Document Ingestion System</h2>
 
 <p align="center">
-  <strong>Advanced Chatbot Powered by LangChain, FAISS, and Reinforcement Learning</strong>
+  <strong>Advanced Chatbot Powered by LangChain, FAISS, and Reinforcement Learning.</strong>
 </p>
 
 <p align="center">
